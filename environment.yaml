@@ -1,0 +1,13 @@
+name: fetch
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.9
+  - pip
+  - pip:
+    - gymnasium
+    - opencv-python==4.9.0.80
+    - wandb==0.16.3
