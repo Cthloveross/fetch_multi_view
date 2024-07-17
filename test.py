@@ -1,28 +1,28 @@
 import gymnasium as gym
 import numpy as np
-from mujoco import viewer
-from typing import Union
 
-from gymnasium_robotics.envs.robot_env import MujocoPyRobotEnv, MujocoRobotEnv
-from gymnasium_robotics.utils import rotations
+# Define the function to set up the environment with different camera viewpoints
+def setup_env_with_viewpoint(env_id, render_mode="human", params=None):
+    if params is None:
+        params = {
+            "azimuth": 132.0,
+            "elevation": -14.0,
+            "distance": 2.5,
+            "lookat": np.array([1.3, 0.75, 0.55])
+        }
 
-DEFAULT_CAMERA_CONFIG = {
-    "distance": 2.5,
-    "azimuth": 132.0,
-    "elevation": -14.0,
-    "lookat": np.array([1.3, 0.75, 0.55]),
-}
+    # Initialize the environment
+    env = gym.make(env_id, render_mode=render_mode)
+    env.reset()
+    env.render()  # Render once to initialize the viewer
 
-def _viewer_setup(env):
-    lookat = env.sim.data.get_site_xpos("gripperpalm")
-    for idx, value in enumerate(lookat):
-        env.unwrapped.viewer.cam.lookat[idx] = value
-    assert env.unwrapped.viewer is not None
-    for key, value in DEFAULT_CAMERA_CONFIG.items():
-        if isinstance(value, np.ndarray):
-            getattr(env.unwrapped.viewer.cam, key)[:] = value
-        else:
-            setattr(env.unwrapped.viewer.cam, key, value)
+    # Set the camera parameters
+    env.unwrapped.mujoco_renderer.default_cam_config['azimuth'] = params['azimuth']
+    env.unwrapped.mujoco_renderer.default_cam_config['elevation'] = params['elevation']
+    env.unwrapped.mujoco_renderer.default_cam_config['distance'] = params['distance']
+    env.unwrapped.mujoco_renderer.default_cam_config['lookat'] = params['lookat']
+
+    return env
 
 # Define a simple random policy for demonstration
 def random_policy(env):
@@ -50,37 +50,24 @@ camera_params_left = {
     "lookat": np.array([1.3, 0.75, 0.55])
 }
 
-# Set up and run the environment with the front camera parameters
+# Set up and run the environment with the right camera parameters
 env_id = "FetchPickAndPlace-v3"
 
 # Iterate over different camera parameters
-for params in [camera_params_front, camera_params_right, camera_params_left]:
-    # Initialize the environment
-    env = gym.make(env_id)
-    env.reset()
+env = setup_env_with_viewpoint(env_id, params=camera_params_right)
 
-    # Apply camera settings
-    env.unwrapped.viewer.cam.azimuth = params['azimuth']
-    env.unwrapped.viewer.cam.elevation = params['elevation']
-    env.unwrapped.viewer.cam.distance = params['distance']
-    env.unwrapped.viewer.cam.lookat[:] = params['lookat']
+# Reset the environment to get the initial observation
+observation, info = env.reset(seed=42)
 
-    _viewer_setup(env)
+# Run the simulation for 1000 steps with the current camera view
+for _ in range(1000):
+    print("Current camera parameters:", env.unwrapped.mujoco_renderer.default_cam_config)
+    action = random_policy(env)  # Use the random policy to generate actions
+    observation, reward, terminated, truncated, info = env.step(action)
 
-    # Reset the environment to get the initial observation
-    observation, info = env.reset(seed=42)
+    # Check if the episode is terminated or truncated
+    if terminated or truncated:
+        observation, info = env.reset()
 
-    # Run the simulation for 1000 steps with the current camera view
-    for _ in range(1000):
-        action = random_policy(env)  # Use the random policy to generate actions
-        observation, reward, terminated, truncated, info = env.step(action)
-
-        # Render the environment with the specified viewer settings
-        env.render()
-
-        # Check if the episode is terminated or truncated
-        if terminated or truncated:
-            observation, info = env.reset()
-
-    # Close the environment to release resources
-    env.close()
+# Close the environment to release resources
+env.close()
